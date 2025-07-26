@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manage DC Records</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: url('C:/Users/KK/Desktop/dc software/bgimg.jpg') no-repeat center center fixed;
+            background-size: cover; 
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        .main-box {
+            display: inline-block;
+            background: #fff;
+            border: 2px solid #007bff;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            padding: 40px 60px 30px 60px;
+            margin-top: 40px;
+        }
+        h1 {
+            color: #2c3e50;
+            letter-spacing: 2px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #007bff;
+            display: inline-block;
+            padding: 10px 40px 10px 40px;
+            border-radius: 10px 10px 0 0;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        table {
+            margin: 20px auto;
+            border-collapse: collapse;
+            min-width: 700px;
+            background: #fff;
+        }
+        th, td {
+            border: 1px solid #007bff;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background: #e0e7ef;
+        }
+        .back-btn {
+            background-color: #dc3545;
+            color: #fff;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            margin-top: 20px;
+            cursor: pointer;
+        }
+        .back-btn:hover {
+            background: #b52a37;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-box">
+        <h1>Manage DC Records</h1>
+        <div style="margin-bottom:20px;">
+            <input type="text" id="searchDCNumber" placeholder="Search by DC Number" style="width:180px; margin-right:10px;">
+            <input type="date" id="searchDate" style="width:150px; margin-right:10px;">
+            <input type="text" id="searchTo" placeholder="Search by To" style="width:180px;">
+            <button onclick="renderTable()" style="margin-left:10px;">Search</button>
+            <button onclick="clearSearch()" style="margin-left:10px; background:#eee; color:#333; border:1px solid #bbb;">Clear</button>
+        </div>
+        <div id="recordsTable"></div>
+        <button class="back-btn" onclick="window.location.href='index.html'">Back to Home</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        // Redirect to login if not authenticated
+        if (!localStorage.getItem('isLoggedIn')) {
+            window.location.href = 'login.html';
+        }
+        let searchPerformed = false;
+        function renderTable() {
+            searchPerformed = true;
+            let records = JSON.parse(localStorage.getItem('dcRecords')) || [];
+            const dcNumber = document.getElementById('searchDCNumber').value.trim();
+            const date = document.getElementById('searchDate').value;
+            const to = document.getElementById('searchTo').value.trim().toLowerCase();
+            // If any search field is filled, filter by that field only (priority: DC Number > Date > To)
+            if (dcNumber) {
+                records = records.filter(dc => dc.dcNumber.toLowerCase().includes(dcNumber.toLowerCase()));
+            } else if (date) {
+                records = records.filter(dc => dc.dcDate === date);
+            } else if (to) {
+                records = records.filter(dc => dc.toReceiver.toLowerCase().includes(to));
+            } else {
+                document.getElementById('recordsTable').innerHTML = '<p>Please enter a search value.</p>';
+                return;
+            }
+            if (records.length === 0) {
+                document.getElementById('recordsTable').innerHTML = '<p>No DC records found.</p>';
+                return;
+            }
+            let html = '<table><tr><th>DC Number</th><th>Date</th><th>From</th><th>To</th><th>Prepared By</th><th>Items</th><th>Export</th></tr>';
+            records.forEach(dc => {
+                html += `<tr>
+                    <td>${dc.dcNumber}</td>
+                    <td>${dc.dcDate}</td>
+                    <td>${dc.fromSender}</td>
+                    <td>${dc.toReceiver}</td>
+                    <td>${dc.preparedBy}</td>
+                    <td>${dc.items.length}</td>
+                    <td><button onclick="exportSinglePDF('${dc.dcNumber}')">Export PDF</button></td>
+                </tr>`;
+            });
+            html += '</table>';
+            document.getElementById('recordsTable').innerHTML = html;
+        }
+        function clearSearch() {
+            document.getElementById('searchDCNumber').value = '';
+            document.getElementById('searchDate').value = '';
+            document.getElementById('searchTo').value = '';
+            document.getElementById('recordsTable').innerHTML = '';
+            searchPerformed = false;
+        }
+       
+        function exportSinglePDF(dcNumber) {
+    const { jsPDF } = window.jspdf;
+    let records = JSON.parse(localStorage.getItem('dcRecords')) || [];
+    let dc = records.find(r => r.dcNumber === dcNumber);
+    if (!dc) {
+        alert('Record not found!');
+        return;
+    }   
+    let doc = new jsPDF();
+    let y = 20;
+
+    // Title
+    doc.setFontSize(18);
+    doc.text('Delivery Challan', 105, y, { align: 'center' });
+    y += 10;
+    doc.setLineWidth(0.5);
+    doc.line(20, y, 190, y);
+    y += 10;
+
+    // Company Name (optional)
+    doc.setFontSize(12);
+    doc.text('Your Company Name', 20, y);
+    y += 10;
+
+    // DC Details
+    doc.setFontSize(11);
+    doc.text(`DC Number: ${dc.dcNumber}`, 20, y);
+    doc.text(`Date: ${dc.dcDate}`, 140, y);
+    y += 8;
+    doc.text(`From: ${dc.fromSender}`, 20, y);
+    doc.text(`To: ${dc.toReceiver}`, 140, y);
+    y += 8;
+    doc.text(`Prepared By: ${dc.preparedBy}`, 20, y);
+    y += 10;
+
+    // Items Table Header
+    doc.setFontSize(12);
+    doc.text('Items:', 20, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.text('S.No', 22, y);
+    doc.text('Description', 40, y);
+    doc.text('Quantity', 150, y);
+    y += 6;
+    doc.line(20, y, 190, y);
+    y += 4;
+
+    // Items Table Rows
+    if (dc.items && dc.items.length > 0) {
+        dc.items.forEach((item, idx) => {
+            doc.text(String(idx + 1), 22, y);
+            doc.text(item.description || '', 40, y);
+            doc.text(String(item.quantity || ''), 150, y);
+            y += 6;
+        });
+    } else {
+        doc.text('No items.', 22, y);
+        y += 6;
+    }
+
+    // Footer
+    y += 10;
+    doc.setFontSize(10);
+    doc.text('Signature:', 20, y);
+
+    doc.save(`${dc.dcNumber}.pdf`);
+        }
+    </script>
+</body>
+</html>
